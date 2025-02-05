@@ -18,12 +18,15 @@ const processJsonFile = (filePath, outputDir) => {
         const fileContent = fs.readFileSync(filePath, 'utf8');
         const jsonData = JSON.parse(fileContent);
 
-        if (!jsonData.success || !jsonData.data || !jsonData.data.arquivo || !jsonData.data.arquivo.data) {
-            console.error(`Formato inválido no arquivo ${filePath}`);
+        // para buscar um array buffer dentro do json
+        const bufferData = Object.values(jsonData).flat(Infinity).find(
+            item => Array.isArray(item) && item.every(Number.isInteger)
+        );
+
+        if (!bufferData) {
+            console.error(`Nenhum buffer válido encontrado no arquivo ${filePath}`);
             return;
         }
-
-        const bufferData = jsonData.data.arquivo.data;
 
         if (!Array.isArray(bufferData) || !bufferData.every(Number.isInteger)) {
             console.error(`O buffer deve ser um array de números inteiros no arquivo ${filePath}`);
@@ -74,13 +77,19 @@ const watchFolder = () => {
 
 app.post('/create-pdf', (req, res) => {
     try {
-        const { buffer } = req.body;
+        const jsonData = req.body;
+        const bufferData = Object.values(jsonData)
+            .flat(Infinity)
+            .find(item => Array.isArray(item) && item.every(Number.isInteger));
 
-        if (!Array.isArray(buffer) || !buffer.every(Number.isInteger)) {
-            return res.status(400).json({ success: false, message: 'O buffer deve ser um array de números inteiros.' });
+        if (!bufferData) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nenhum buffer válido encontrado no JSON enviado.'
+            });
         }
 
-        const pdfBuffer = Buffer.from(buffer);
+        const pdfBuffer = Buffer.from(bufferData);
 
         const outputDir = path.join(__dirname, 'output');
         if (!fs.existsSync(outputDir)) {
@@ -94,7 +103,7 @@ app.post('/create-pdf', (req, res) => {
         res.json({ message: 'PDF salvo com sucesso!', filePath });
     } catch (error) {
         console.error('Erro ao salvar o PDF:', error);
-        res.status(500).json({ sucess: false, message: 'Erro ao salvar o PDF.' });
+        res.status(500).json({ success: false, message: 'Erro ao salvar o PDF.' });
     }
 });
 
